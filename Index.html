@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>My Flipbook</title>
+  <style>
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #1a1a2e;
+      font-family: 'Segoe UI', sans-serif;
+      user-select: none;
+    }
+
+    h1 {
+      color: #e0e0e0;
+      font-size: 1.6rem;
+      margin-bottom: 24px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    /* ── Book Container ── */
+    .book-scene {
+      perspective: 2000px;
+      width: 420px;
+      height: 560px;
+    }
+
+    .book {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      transform-style: preserve-3d;
+    }
+
+    /* ── Each Page ── */
+    .page {
+      position: absolute;
+      top: 0; right: 0;
+      width: 50%;
+      height: 100%;
+      transform-origin: left center;
+      transform-style: preserve-3d;
+      transition: transform 0.9s cubic-bezier(0.645, 0.045, 0.355, 1.000);
+      cursor: pointer;
+    }
+
+    /* Stack pages so first is on top */
+    .page { z-index: 1; }
+    .page.flipped { z-index: 0; transform: rotateY(-180deg); }
+
+    .page-front, .page-back {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      border-radius: 0 8px 8px 0;
+      overflow: hidden;
+      box-shadow: 4px 4px 20px rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      padding: 24px;
+    }
+
+    .page-back {
+      transform: rotateY(180deg);
+      border-radius: 8px 0 0 8px;
+      box-shadow: -4px 4px 20px rgba(0,0,0,0.5);
+    }
+
+    /* Left (static) half of spread */
+    .book-left {
+      position: absolute;
+      top: 0; left: 0;
+      width: 50%;
+      height: 100%;
+      border-radius: 8px 0 0 8px;
+      overflow: hidden;
+      box-shadow: -4px 4px 20px rgba(0,0,0,0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      padding: 24px;
+      background: #fff;
+    }
+
+    /* Page content */
+    .page-content { text-align: center; }
+    .page-content .pg-num {
+      font-size: 0.75rem;
+      color: #999;
+      margin-bottom: 12px;
+      letter-spacing: 1px;
+    }
+    .page-content h2 { font-size: 1.3rem; color: #333; margin-bottom: 10px; }
+    .page-content p  { font-size: 0.85rem; color: #555; line-height: 1.6; }
+    .page-content img {
+      max-width: 100%; max-height: 320px;
+      object-fit: contain; border-radius: 4px;
+      margin-bottom: 10px;
+    }
+
+    /* Colour themes per page */
+    .c1 { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; }
+    .c1 h2, .c1 p, .c1 .pg-num { color: #fff; }
+    .c2 { background: #fff; }
+    .c3 { background: linear-gradient(135deg, #f7971e, #ffd200); }
+    .c3 h2, .c3 p, .c3 .pg-num { color: #333; }
+    .c4 { background: #fff; }
+    .c5 { background: linear-gradient(135deg, #11998e, #38ef7d); }
+    .c5 h2, .c5 p, .c5 .pg-num { color: #fff; }
+    .c6 { background: #fff; }
+    .c7 { background: linear-gradient(135deg, #fc4a1a, #f7b733); }
+    .c7 h2, .c7 p, .c7 .pg-num { color: #fff; }
+    .c8 { background: #fff; }
+
+    /* Book spine shadow */
+    .spine {
+      position: absolute;
+      left: 50%; top: 0;
+      width: 6px; height: 100%;
+      transform: translateX(-50%);
+      background: linear-gradient(to right, #bbb, #eee, #bbb);
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    /* ── Controls ── */
+    .controls {
+      margin-top: 28px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .btn {
+      background: #e94560;
+      color: #fff;
+      border: none;
+      padding: 10px 28px;
+      border-radius: 30px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      letter-spacing: 1px;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .btn:hover  { background: #c73652; }
+    .btn:active { transform: scale(0.96); }
+    .btn:disabled { background: #555; cursor: default; }
+
+    .page-indicator {
+      color: #aaa;
+      font-size: 0.85rem;
+      min-width: 80px;
+      text-align: center;
+    }
+
+    /* Thumbnail strip */
+    .thumbnails {
+      display: flex;
+      gap: 8px;
+      margin-top: 18px;
+      flex-wrap: wrap;
+      justify-content: center;
+      max-width: 500px;
+    }
+    .thumb {
+      width: 36px; height: 48px;
+      border-radius: 4px;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: border-color 0.2s, transform 0.2s;
+      overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.6rem; color: #fff;
+    }
+    .thumb:hover   { transform: scale(1.1); }
+    .thumb.active  { border-color: #e94560; }
+  </style>
+</head>
+<body>
+
+<h1>📖 My Flipbook</h1>
+
+<div class="book-scene">
+  <div class="book" id="book">
+
+    <!-- Static left page (shows "previous" page content) -->
+    <div class="book-left" id="book-left">
+      <div class="page-content" id="left-content">
+        <span class="pg-num">COVER</span>
+        <h2>Welcome</h2>
+        <p>Click the right side or press → to flip!</p>
+      </div>
+    </div>
+
+    <!-- Spine -->
+    <div class="spine"></div>
+
+    <!--
+      PAGES — add as many .page divs as you need.
+      Each .page has a .page-front (right side when closed)
+      and a .page-back (left side after flip).
+      To use PDF images, replace the inner HTML with:
+        <img src="page1.jpg" alt="Page 1">
+    -->
+
+    <div class="page" id="page-1">
+      <div class="page-front c1">
+        <div class="page-content">
+          <span class="pg-num">PAGE 1</span>
+          <h2>Chapter One</h2>
+          <p>Replace this with your PDF page image or custom content. Add &lt;img src="page1.jpg"&gt; here.</p>
+        </div>
+      </div>
+      <div class="page-back c2">
+        <div class="page-content">
+          <span class="pg-num">PAGE 2</span>
+          <h2>Chapter Two</h2>
+          <p>This is the back of page 1. It shows on the left spread after flipping.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="page" id="page-2">
+      <div class="page-front c3">
+        <div class="page-content">
+          <span class="pg-num">PAGE 3</span>
+          <h2>Chapter Three</h2>
+          <p>Another exciting page. Swap this with your content or images from your PDF.</p>
+        </div>
+      </div>
+      <div class="page-back c4">
+        <div class="page-content">
+          <span class="pg-num">PAGE 4</span>
+          <h2>Chapter Four</h2>
+          <p>Content continues on the left side of the spread.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="page" id="page-3">
+      <div class="page-front c5">
+        <div class="page-content">
+          <span class="pg-num">PAGE 5</span>
+          <h2>Chapter Five</h2>
+          <p>Keep adding pages by duplicating the .page block above.</p>
+        </div>
+      </div>
+      <div class="page-back c6">
+        <div class="page-content">
+          <span class="pg-num">PAGE 6</span>
+          <h2>Chapter Six</h2>
+          <p>This is page 6 content shown on the left after flipping page 3.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="page" id="page-4">
+      <div class="page-front c7">
+        <div class="page-content">
+          <span class="pg-num">PAGE 7</span>
+          <h2>The End</h2>
+          <p>Last page! You can add more .page blocks to extend the book.</p>
+        </div>
+      </div>
+      <div class="page-back c8">
+        <div class="page-content">
+          <span class="pg-num">PAGE 8</span>
+          <h2>Thank You</h2>
+          <p>🎉 Hope you enjoyed the flipbook!</p>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /.book -->
+</div><!-- /.book-scene -->
+
+<!-- Controls -->
+<div class="controls">
+  <button class="btn" id="btn-prev" onclick="flipPrev()" disabled>◀ Prev</button>
+  <span class="page-indicator" id="indicator">Cover</span>
+  <button class="btn" id="btn-next" onclick="flipNext()">Next ▶</button>
+</div>
+
+<!-- Thumbnail strip -->
+<div class="thumbnails" id="thumbnails"></div>
+
+<script>
+  // ─── Data ───────────────────────────────────────────────────────────────────
+  // Each spread = { left: {label, color}, right: {label, color} }
+  // currentSpread: 0 = cover/page1, 1 = page2/3, etc.
+
+  const pages    = document.querySelectorAll('.page');
+  const total    = pages.length;          // number of flip pages
+  let   current  = 0;                     // how many pages are currently flipped
+
+  const indicator   = document.getElementById('indicator');
+  const btnPrev     = document.getElementById('btn-prev');
+  const btnNext     = document.getElementById('btn-next');
+  const leftContent = document.getElementById('left-content');
+
+  // Left-side content mirrors the back of the last flipped page
+  const leftData = [
+    { label: 'COVER',  heading: 'Welcome',       body: 'Click the right side or press → to flip!' },
+    { label: 'PAGE 2', heading: 'Chapter Two',    body: 'This is the back of page 1. It shows on the left spread after flipping.' },
+    { label: 'PAGE 4', heading: 'Chapter Four',   body: 'Content continues on the left side of the spread.' },
+    { label: 'PAGE 6', heading: 'Chapter Six',    body: 'This is page 6 content shown on the left after flipping page 3.' },
+    { label: 'PAGE 8', heading: 'Thank You',      body: '🎉 Hope you enjoyed the flipbook!' },
+  ];
+
+  const colorMap = ['', 'c2', 'c4', 'c6', 'c8'];
+
+  function updateUI() {
+    // Update indicator
+    if (current === 0)     indicator.textContent = 'Cover';
+    else if (current === total) indicator.textContent = `Page ${total * 2} / ${total * 2}`;
+    else indicator.textContent = `Page ${current * 2} – ${current * 2 + 1}`;
+
+    // Update left panel
+    const ld = leftData[current];
+    const cl = colorMap[current] || '';
+    const bookLeft = document.getElementById('book-left');
+    bookLeft.className = 'book-left ' + cl;
+    leftContent.innerHTML = `<span class="pg-num">${ld.label}</span><h2>${ld.heading}</h2><p>${ld.body}</p>`;
+
+    // Buttons
+    btnPrev.disabled = current === 0;
+    btnNext.disabled = current === total;
+
+    // Thumbnails
+    document.querySelectorAll('.thumb').forEach((t, i) => {
+      t.classList.toggle('active', i === current);
+    });
+
+    // Z-index stacking: unflipped pages must sit above flipped ones
+    pages.forEach((p, i) => {
+      p.style.zIndex = i < current ? i : (total - i);
+    });
+  }
+
+  function flipNext() {
+    if (current >= total) return;
+    pages[current].classList.add('flipped');
+    current++;
+    updateUI();
+  }
+
+  function flipPrev() {
+    if (current <= 0) return;
+    current--;
+    pages[current].classList.remove('flipped');
+    updateUI();
+  }
+
+  function goToPage(n) {
+    // Flip all pages up to n
+    while (current < n) { pages[current].classList.add('flipped'); current++; }
+    while (current > n) { current--; pages[current].classList.remove('flipped'); }
+    updateUI();
+  }
+
+  // Click on right half of book to flip forward
+  document.getElementById('book').addEventListener('click', function(e) {
+    const rect = this.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    if (x > rect.width / 2) flipNext();
+  });
+
+  // Keyboard navigation
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight') flipNext();
+    if (e.key === 'ArrowLeft')  flipPrev();
+  });
+
+  // Build thumbnails
+  const strip = document.getElementById('thumbnails');
+  const thumbColors = ['#667eea','#f7971e','#11998e','#fc4a1a','#764ba2'];
+  for (let i = 0; i <= total; i++) {
+    const t = document.createElement('div');
+    t.className = 'thumb' + (i === 0 ? ' active' : '');
+    t.style.background = thumbColors[i % thumbColors.length];
+    t.textContent = i === 0 ? 'C' : i;
+    t.title = i === 0 ? 'Cover' : `Spread ${i}`;
+    t.addEventListener('click', () => goToPage(i));
+    strip.appendChild(t);
+  }
+
+  updateUI();
+</script>
+</body>
+</html>
